@@ -1,0 +1,95 @@
+{
+  "name": "snippets-helper",
+  "displayName": "Snippets Helper",
+  "description": "为snippets添加数字标注，支持快速选择",
+  "version": "0.0.1",
+  "engines": {
+    "vscode": "^1.60.0"
+  },
+  "categories": [
+    "Other"
+  ],
+  "activationEvents": [
+    "onStartupFinished",
+    "onLanguage:*",
+    "onCommand:snippetsHelper.enable"
+  ],
+  "main": "./src/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "snippetsHelper.enable",
+        "title": "启用 Snippets Helper"
+      }
+    ],
+    "configuration": {
+      "title": "Snippets Helper",
+      "properties": {
+        "snippetsHelper.enabled": {
+          "type": "boolean",
+          "default": true,
+          "description": "是否启用snippets数字标注功能"
+        }
+      }
+    },
+    "keybindings": [
+      {
+        "command": "snippetsHelper.insertSnippet",
+        "key": "0",
+        "when": "editorTextFocus && suggestWidgetVisible"
+      },
+      {
+        "command": "snippetsHelper.insertSnippet",
+        "key": "1",
+        "when": "editorTextFocus && suggestWidgetVisible"
+      },
+      {
+        "command": "snippetsHelper.insertSnippet",
+        "key": "2",
+        "when": "editorTextFocus && suggestWidgetVisible"
+      },
+      {
+        "command": "snippetsHelper.insertSnippet",
+        "key": "3",
+        "when": "editorTextFocus && suggestWidgetVisible"
+      },
+      {
+        "command": "snippetsHelper.insertSnippet",
+        "key": "4",
+        "when": "editorTextFocus && suggestWidgetVisible"
+      },
+      {
+        "command": "snippetsHelper.insertSnippet",
+        "key": "5",
+        "when": "editorTextFocus && suggestWidgetVisible"
+      },
+      {
+        "command": "snippetsHelper.insertSnippet",
+        "key": "6",
+        "when": "editorTextFocus && suggestWidgetVisible"
+      },
+      {
+        "command": "snippetsHelper.insertSnippet",
+        "key": "7",
+        "when": "editorTextFocus && suggestWidgetVisible"
+      },
+      {
+        "command": "snippetsHelper.insertSnippet",
+        "key": "8",
+        "when": "editorTextFocus && suggestWidgetVisible"
+      },
+      {
+        "command": "snippetsHelper.insertSnippet",
+        "key": "9",
+        "when": "editorTextFocus && suggestWidgetVisible"
+      }
+    ]
+  },
+  "scripts": {
+    "debug": "nodemon --watch src --exec \"code --extensionDevelopmentPath=%cd% --disable-extensions --new-window\"",
+    "vscode:prepublish": "echo 'No build needed'"
+  },
+  "devDependencies": {
+    "@types/vscode": "^1.60.0"
+  }
+}
