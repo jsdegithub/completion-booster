@@ -87,6 +87,7 @@
   },
   "scripts": {
     "debug": "nodemon --watch src --exec \"code --extensionDevelopmentPath=%cd% --disable-extensions --new-window\"",
+    "debug:mac": "nodemon --watch src --exec \"code --disable-extensions --extensionDevelopmentPath=${PWD} --enable-proposed-api\"",
     "vscode:prepublish": "echo 'No build needed'"
   },
   "devDependencies": {
