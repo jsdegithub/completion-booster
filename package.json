@@ -92,5 +92,8 @@
   },
   "devDependencies": {
     "@types/vscode": "^1.60.0"
+  },
+  "dependencies": {
+    "jsonc-parser": "^3.3.1"
   }
 }
