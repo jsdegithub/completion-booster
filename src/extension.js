@@ -262,80 +262,91 @@ function activate(context) {
             return items;
           }
 
-          // 处理具体的 snippets 文件
-          const devSnippetsPath = path.join(snippetsPath, 'dev.code-snippets');
-          if (fs.existsSync(devSnippetsPath)) {
-            try {
-              const fileContent = fs.readFileSync(devSnippetsPath, 'utf8');
-              outputChannel.appendLine(`文件内容长度: ${fileContent.length} 字节`);
+          // 替换原来读取dev.code-snippets的部分
+          try {
+            outputChannel.appendLine('\n========== 用户自定义 Snippets ==========');
 
-              // 使用 JSONC 解析器处理文件
-              let content;
+            // 读取snippetsPath目录下的所有文件
+            const files = fs.readdirSync(snippetsPath);
+            const snippetFiles = files.filter((file) => file.endsWith('.code-snippets'));
+
+            outputChannel.appendLine(`在 ${snippetsPath} 中找到 ${snippetFiles.length} 个代码片段文件`);
+
+            // 遍历所有snippets文件
+            for (const snippetFile of snippetFiles) {
+              const fullPath = path.join(snippetsPath, snippetFile);
+              outputChannel.appendLine(`\n处理文件: ${fullPath}`);
+
               try {
-                // 使用 jsonc-parser 解析带注释的 JSON
-                const errors = [];
-                content = jsoncParser.parse(fileContent, errors, {allowTrailingComma: true});
+                const fileContent = fs.readFileSync(fullPath, 'utf8');
+                outputChannel.appendLine(`文件内容长度: ${fileContent.length} 字节`);
 
-                if (errors.length > 0) {
-                  outputChannel.appendLine('JSONC 解析警告:');
-                  errors.forEach((error) => {
-                    outputChannel.appendLine(`- 位置 ${error.offset}: ${error.error}`);
-                  });
-                }
-
-                if (!content) {
-                  throw new Error('解析结果为空');
-                }
-              } catch (jsonError) {
-                outputChannel.appendLine(`JSONC 解析错误: ${jsonError.message}`);
-                outputChannel.appendLine('尝试移除注释后解析...');
-
-                // 移除注释并尝试标准 JSON 解析
-                const strippedContent = fileContent
-                  .replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '') // 移除注释
-                  .replace(/,(\s*[}\]])/g, '$1'); // 移除尾随逗号
-
+                // 使用 JSONC 解析器处理文件
+                let content;
                 try {
-                  content = JSON.parse(strippedContent);
-                } catch (fallbackError) {
-                  outputChannel.appendLine(`标准 JSON 解析也失败: ${fallbackError.message}`);
-                  throw fallbackError;
-                }
-              }
+                  const errors = [];
+                  content = jsoncParser.parse(fileContent, errors, {allowTrailingComma: true});
 
-              outputChannel.appendLine(`\n成功读取 dev.code-snippets: ${devSnippetsPath}`);
-              outputChannel.appendLine(`包含 ${Object.keys(content).length} 个代码片段`);
-
-              Object.entries(content).forEach(([name, snippet]) => {
-                try {
-                  // 检查 scope 是否匹配当前语言
-                  const scope = snippet.scope ? snippet.scope.split(',').map((s) => s.trim()) : ['global'];
-                  if (scope.includes('global') || scope.includes(languageId)) {
-                    outputChannel.appendLine(
-                      `  - Snippet "${name}": ${snippet.prefix || '无前缀'} (作用域: ${scope.join(', ')})`
-                    );
-                    snippets.push({
-                      name,
-                      ...snippet,
-                      source: 'user',
-                      isSnippet: true,
-                      isUserSnippet: true,
+                  if (errors.length > 0) {
+                    outputChannel.appendLine(`${snippetFile} JSONC 解析警告:`);
+                    errors.forEach((error) => {
+                      outputChannel.appendLine(`- 位置 ${error.offset}: ${error.error}`);
                     });
-                  } else {
-                    outputChannel.appendLine(`  - 跳过 Snippet "${name}": 作用域不匹配 (${scope.join(', ')})`);
                   }
-                } catch (snippetError) {
-                  outputChannel.appendLine(`处理片段 "${name}" 时出错: ${snippetError.message}`);
+
+                  if (!content) {
+                    throw new Error('解析结果为空');
+                  }
+                } catch (jsonError) {
+                  outputChannel.appendLine(`JSONC 解析错误: ${jsonError.message}`);
+                  outputChannel.appendLine('尝试移除注释后解析...');
+
+                  const strippedContent = fileContent
+                    .replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '')
+                    .replace(/,(\s*[}\]])/g, '$1');
+
+                  try {
+                    content = JSON.parse(strippedContent);
+                  } catch (fallbackError) {
+                    outputChannel.appendLine(`标准 JSON 解析也失败: ${fallbackError.message}`);
+                    continue; // 跳过此文件,继续处理下一个
+                  }
                 }
-              });
-            } catch (err) {
-              outputChannel.appendLine(`读取或解析 dev.code-snippets 失败:`);
-              outputChannel.appendLine(`- 错误类型: ${err.name}`);
-              outputChannel.appendLine(`- 错误消息: ${err.message}`);
-              outputChannel.appendLine(`- 堆栈跟踪: ${err.stack}`);
+
+                outputChannel.appendLine(`成功读取 ${snippetFile}`);
+                outputChannel.appendLine(`包含 ${Object.keys(content).length} 个代码片段`);
+
+                // 处理文件中的所有snippets
+                Object.entries(content).forEach(([name, snippet]) => {
+                  try {
+                    const scope = snippet.scope ? snippet.scope.split(',').map((s) => s.trim()) : ['global'];
+                    if (scope.includes('global') || scope.includes(languageId)) {
+                      outputChannel.appendLine(
+                        `  - Snippet "${name}": ${snippet.prefix || '无前缀'} (作用域: ${scope.join(', ')})`
+                      );
+                      snippets.push({
+                        name,
+                        ...snippet,
+                        source: `user/${path.basename(snippetFile, '.code-snippets')}`, // 添加文件来源
+                        isSnippet: true,
+                        isUserSnippet: true,
+                      });
+                    } else {
+                      outputChannel.appendLine(`  - 跳过 Snippet "${name}": 作用域不匹配 (${scope.join(', ')})`);
+                    }
+                  } catch (snippetError) {
+                    outputChannel.appendLine(`处理片段 "${name}" 时出错: ${snippetError.message}`);
+                  }
+                });
+              } catch (err) {
+                outputChannel.appendLine(`读取或解析 ${snippetFile} 失败:`);
+                outputChannel.appendLine(`- 错误类型: ${err.name}`);
+                outputChannel.appendLine(`- 错误消息: ${err.message}`);
+                outputChannel.appendLine(`- 堆栈跟踪: ${err.stack}`);
+              }
             }
-          } else {
-            outputChannel.appendLine(`dev.code-snippets 文件不存在: ${devSnippetsPath}`);
+          } catch (err) {
+            outputChannel.appendLine(`处理用户 snippets 时出错: ${err.stack || err.message}`);
           }
 
           // 获取工作区 snippets
