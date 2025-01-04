@@ -31,56 +31,85 @@ function activate(context) {
   context.subscriptions.push(insertSnippetCommand);
 
   // 修改处理带序号的代码片段插入命令
-  let insertNumberedSnippetCommand = vscode.commands.registerCommand('snippetsHelper.insertNumberedSnippet', async (args) => {
-    const editor = vscode.window.activeTextEditor;
-    if (!editor) {
-      outputChannel.appendLine('无活动编辑器');
-      return;
-    }
-
-    // 从参数中获取输入的数字
-    const inputChar = args?.text;
-    if (!inputChar) {
-      outputChannel.appendLine('未收到数字输入');
-      return;
-    }
-
-    outputChannel.appendLine(`收到数字输入: ${inputChar}`);
-    const index = parseInt(inputChar) - 1;
-
-    // 检查缓存的补全项
-    if (!lastMatchedItemsGlobal || lastMatchedItemsGlobal.length === 0) {
-      outputChannel.appendLine('没有可用的补全项');
-      return;
-    }
-
-    outputChannel.appendLine(`当前缓存的补全项数量: ${lastMatchedItemsGlobal.length}`);
-
-    // 检查索引是否有效
-    if (index >= 0 && index < lastMatchedItemsGlobal.length) {
-      const selectedItem = lastMatchedItemsGlobal[index];
-      
-      try {
-        // 获取正确的 snippet 内容
-        const snippetText = selectedItem.insertText instanceof vscode.SnippetString 
-          ? selectedItem.insertText
-          : new vscode.SnippetString(selectedItem.insertText);
-
-        // 插入 snippet
-        await editor.insertSnippet(snippetText);
-        
-        // 隐藏建议列表
-        await vscode.commands.executeCommand('hideSuggestWidget');
-        
-        outputChannel.appendLine(`成功插入代码片段 [${index + 1}]`);
-      } catch (error) {
-        outputChannel.appendLine(`插入代码片段时出错: ${error.message}`);
-        vscode.window.showErrorMessage(`插入代码片段失败: ${error.message}`);
+  let insertNumberedSnippetCommand = vscode.commands.registerCommand(
+    'snippetsHelper.insertNumberedSnippet',
+    async (args) => {
+      const editor = vscode.window.activeTextEditor;
+      if (!editor) {
+        outputChannel.appendLine('无活动编辑器');
+        return;
       }
-    } else {
-      outputChannel.appendLine(`无效的序号: ${inputChar} (索引: ${index})`);
+
+      const inputChar = args?.text;
+      if (!inputChar) {
+        outputChannel.appendLine('未收到数字输入');
+        return;
+      }
+
+      outputChannel.appendLine(`收到数字输入: ${inputChar}`);
+      const index = parseInt(inputChar) - 1;
+
+      if (!lastMatchedItemsGlobal || lastMatchedItemsGlobal.length === 0) {
+        outputChannel.appendLine('没有可用的补全项');
+        return;
+      }
+
+      outputChannel.appendLine(`当前缓存的补全项数量: ${lastMatchedItemsGlobal.length}`);
+
+      if (index >= 0 && index < lastMatchedItemsGlobal.length) {
+        const selectedItem = lastMatchedItemsGlobal[index];
+
+        try {
+          // 获取当前位置和行文本
+          const position = editor.selection.active;
+          const line = editor.document.lineAt(position.line);
+          const lineText = line.text.substring(0, position.character);
+
+          // 从当前位置向前查找到最后一个空格位置
+          const lastSpaceIndex = lineText.lastIndexOf(' ');
+          const triggerWord = lineText.substring(lastSpaceIndex + 1);
+          const triggerWordLength = triggerWord.length;
+
+          // 如果找到触发词，先删除它
+          if (triggerWordLength > 0) {
+            const deleteRange = new vscode.Range(
+              new vscode.Position(position.line, position.character - triggerWordLength),
+              position
+            );
+
+            // 使用 editor.edit 删除触发词
+            await editor.edit(
+              (editBuilder) => {
+                editBuilder.delete(deleteRange);
+              },
+              {undoStopBefore: false, undoStopAfter: false}
+            );
+
+            outputChannel.appendLine(`删除触发词: "${triggerWord}"`);
+          }
+
+          // 获取 snippet 内容
+          const snippetText =
+            selectedItem.insertText instanceof vscode.SnippetString
+              ? selectedItem.insertText
+              : new vscode.SnippetString(selectedItem.insertText);
+
+          // 插入 snippet
+          await editor.insertSnippet(snippetText);
+
+          // 隐藏建议列表
+          await vscode.commands.executeCommand('hideSuggestWidget');
+
+          outputChannel.appendLine(`成功插入代码片段 [${index + 1}]`);
+        } catch (error) {
+          outputChannel.appendLine(`处理时出错: ${error.message}`);
+          vscode.window.showErrorMessage(`插入代码片段失败: ${error.message}`);
+        }
+      } else {
+        outputChannel.appendLine(`无效的序号: ${inputChar} (索引: ${index})`);
+      }
     }
-  });
+  );
 
   context.subscriptions.push(insertNumberedSnippetCommand);
 
@@ -112,7 +141,7 @@ function activate(context) {
   // 监听建议列表状态变化
   context.subscriptions.push(
     vscode.languages.registerCompletionItemProvider(
-      { scheme: 'file' },
+      {scheme: 'file'},
       {
         provideCompletionItems(document, position) {
           isCompletionActive = true;
@@ -148,7 +177,7 @@ function activate(context) {
 
           // 创建新的CompletionItem用于插入
           const autoInsertItem = new vscode.CompletionItem(selectedItem.label);
-          
+
           // 确保使用正确的snippet内容
           const snippetText = selectedItem.insertText || new vscode.SnippetString('');
 
@@ -161,7 +190,7 @@ function activate(context) {
           autoInsertItem.command = {
             command: 'editor.action.insertSnippet',
             title: 'Insert Snippet',
-            arguments: [{ snippet: snippetText.value || snippetText }],
+            arguments: [{snippet: snippetText.value || snippetText}],
           };
 
           // 删除输入的数字
@@ -226,7 +255,7 @@ function activate(context) {
               try {
                 // 使用 jsonc-parser 解析带注释的 JSON
                 const errors = [];
-                content = jsoncParser.parse(fileContent, errors, { allowTrailingComma: true });
+                content = jsoncParser.parse(fileContent, errors, {allowTrailingComma: true});
 
                 if (errors.length > 0) {
                   outputChannel.appendLine('JSONC 解析警告:');
@@ -347,8 +376,7 @@ function activate(context) {
                   name,
                   ...snippet,
                   source: 'user',
-                  isSnippet: true,
-                  isUserSnippet: true,
+                  isSnippet: true, // 添加标记
                 });
               });
             } catch (err) {
@@ -436,17 +464,17 @@ function activate(context) {
             {
               label: `${number}. ${item.label.label || item.label}`,
               description: item.label.description,
-              detail: item.label.detail
+              detail: item.label.detail,
             },
             vscode.CompletionItemKind.Snippet
           );
-          
+
           // 复制原始项的属性
           numberedItem.insertText = item.insertText;
           numberedItem.documentation = item.documentation;
           numberedItem.sortText = `0${number.toString().padStart(3, '0')}`;
           numberedItem.filterText = item.filterText;
-          
+
           return numberedItem;
         });
 
