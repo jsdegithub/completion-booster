@@ -1,4 +1,4 @@
-# Snippets Helper
+# Completion Booster
 
 这是一个为 VSCode snippets 添加数字标注的插件，可以通过数字快速选择你想要的 snippet。
 
@@ -18,7 +18,7 @@
 
 在设置中可以找到以下配置：
 
-- `snippetsHelper.enabled`: 是否启用 snippets 数字标注功能（默认：true）
+- `completionBooster.enabled`: 是否启用 snippets 数字标注功能（默认：true）
 
 ## 注意事项
 

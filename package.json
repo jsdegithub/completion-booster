@@ -1,6 +1,6 @@
 {
-  "name": "snippets-helper",
-  "displayName": "Snippets Helper",
+  "name": "completion-booster",
+  "displayName": "Completion Booster",
   "description": "为snippets添加数字标注，支持快速选择",
   "version": "0.0.1",
   "engines": {
@@ -12,24 +12,24 @@
   "activationEvents": [
     "onStartupFinished",
     "onLanguage:*",
-    "onCommand:snippetsHelper.enable"
+    "onCommand:completionBooster.enable"
   ],
   "main": "./src/extension.js",
   "contributes": {
     "commands": [
       {
-        "command": "snippetsHelper.enable",
-        "title": "启用 Snippets Helper"
+        "command": "completionBooster.enable",
+        "title": "启用 Completion Booster"
       },
       {
-        "command": "snippetsHelper.insertNumberedSnippet",
+        "command": "completionBooster.insertNumberedSnippet",
         "title": "插入带序号的代码片段"
       }
     ],
     "configuration": {
-      "title": "Snippets Helper",
+      "title": "Completion Booster",
       "properties": {
-        "snippetsHelper.enabled": {
+        "completionBooster.enabled": {
           "type": "boolean",
           "default": true,
           "description": "是否启用snippets数字标注功能"
@@ -38,7 +38,7 @@
     },
     "keybindings": [
       {
-        "command": "snippetsHelper.insertNumberedSnippet",
+        "command": "completionBooster.insertNumberedSnippet",
         "key": "0",
         "when": "editorTextFocus && suggestWidgetVisible",
         "args": {
@@ -46,7 +46,7 @@
         }
       },
       {
-        "command": "snippetsHelper.insertNumberedSnippet",
+        "command": "completionBooster.insertNumberedSnippet",
         "key": "1",
         "when": "editorTextFocus && suggestWidgetVisible",
         "args": {
@@ -54,7 +54,7 @@
         }
       },
       {
-        "command": "snippetsHelper.insertNumberedSnippet",
+        "command": "completionBooster.insertNumberedSnippet",
         "key": "2",
         "when": "editorTextFocus && suggestWidgetVisible",
         "args": {
@@ -62,7 +62,7 @@
         }
       },
       {
-        "command": "snippetsHelper.insertNumberedSnippet",
+        "command": "completionBooster.insertNumberedSnippet",
         "key": "3",
         "when": "editorTextFocus && suggestWidgetVisible",
         "args": {
@@ -70,7 +70,7 @@
         }
       },
       {
-        "command": "snippetsHelper.insertNumberedSnippet",
+        "command": "completionBooster.insertNumberedSnippet",
         "key": "4",
         "when": "editorTextFocus && suggestWidgetVisible",
         "args": {
@@ -78,7 +78,7 @@
         }
       },
       {
-        "command": "snippetsHelper.insertNumberedSnippet",
+        "command": "completionBooster.insertNumberedSnippet",
         "key": "5",
         "when": "editorTextFocus && suggestWidgetVisible",
         "args": {
@@ -86,7 +86,7 @@
         }
       },
       {
-        "command": "snippetsHelper.insertNumberedSnippet",
+        "command": "completionBooster.insertNumberedSnippet",
         "key": "6",
         "when": "editorTextFocus && suggestWidgetVisible",
         "args": {
@@ -94,7 +94,7 @@
         }
       },
       {
-        "command": "snippetsHelper.insertNumberedSnippet",
+        "command": "completionBooster.insertNumberedSnippet",
         "key": "7",
         "when": "editorTextFocus && suggestWidgetVisible",
         "args": {
@@ -102,7 +102,7 @@
         }
       },
       {
-        "command": "snippetsHelper.insertNumberedSnippet",
+        "command": "completionBooster.insertNumberedSnippet",
         "key": "8",
         "when": "editorTextFocus && suggestWidgetVisible",
         "args": {
@@ -110,7 +110,7 @@
         }
       },
       {
-        "command": "snippetsHelper.insertNumberedSnippet",
+        "command": "completionBooster.insertNumberedSnippet",
         "key": "9",
         "when": "editorTextFocus && suggestWidgetVisible",
         "args": {

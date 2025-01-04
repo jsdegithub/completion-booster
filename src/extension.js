@@ -7,20 +7,20 @@ const jsoncParser = require('jsonc-parser'); // 添加 JSONC 解析器
 let lastMatchedItemsGlobal = [];
 
 function activate(context) {
-  console.log('开始激活 Snippets Helper...');
+  console.log('开始激活 Completion Booster...');
 
   // 创建输出通道用于调试
-  const outputChannel = vscode.window.createOutputChannel('Snippets Helper');
+  const outputChannel = vscode.window.createOutputChannel('Completion Booster');
   outputChannel.show(); // 强制显示输出通道
 
   // 注册命令
-  let enableCommand = vscode.commands.registerCommand('snippetsHelper.enable', () => {
-    vscode.window.showInformationMessage('Snippets Helper 已启用！');
+  let enableCommand = vscode.commands.registerCommand('completionBooster.enable', () => {
+    vscode.window.showInformationMessage('Completion Booster 已启用！');
   });
   context.subscriptions.push(enableCommand);
 
   // 修改插入snippet的命令处理
-  let insertSnippetCommand = vscode.commands.registerCommand('snippetsHelper.insertSnippet', async (args) => {
+  let insertSnippetCommand = vscode.commands.registerCommand('completionBooster.insertSnippet', async (args) => {
     const editor = vscode.window.activeTextEditor;
     if (editor && args && args.snippet) {
       const snippetString =
@@ -32,7 +32,7 @@ function activate(context) {
 
   // 修改处理带序号的代码片段插入命令
   let insertNumberedSnippetCommand = vscode.commands.registerCommand(
-    'snippetsHelper.insertNumberedSnippet',
+    'completionBooster.insertNumberedSnippet',
     async (args) => {
       const editor = vscode.window.activeTextEditor;
       if (!editor) {
@@ -115,19 +115,19 @@ function activate(context) {
 
   // 创建状态栏项
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
-  statusBarItem.text = '$(list-ordered) Snippets Helper';
-  statusBarItem.tooltip = '点击管理 Snippets Helper';
-  statusBarItem.command = 'snippetsHelper.enable';
+  statusBarItem.text = '$(list-ordered) Completion Booster';
+  statusBarItem.tooltip = '点击管理 Completion Booster';
+  statusBarItem.command = 'completionBooster.enable';
   statusBarItem.show();
 
   // 添加到订阅列表
   context.subscriptions.push(statusBarItem);
 
   // 显示通知
-  vscode.window.showInformationMessage('Snippets Helper 插件已启动');
+  vscode.window.showInformationMessage('Completion Booster 插件已启动');
 
   outputChannel.appendLine('===============================');
-  outputChannel.appendLine('Snippets Helper 插件已启动');
+  outputChannel.appendLine('Completion Booster 插件已启动');
   outputChannel.appendLine(`时间: ${new Date().toLocaleString()}`);
   outputChannel.appendLine('===============================');
 
@@ -498,14 +498,10 @@ function activate(context) {
 
   // 注册补全提供器，设置触发字符包含数字
   outputChannel.appendLine('注册补全提供器，包含数字触发字符');
-  const disposable = vscode.languages.registerCompletionItemProvider(
-    { scheme: 'file' },
-    provider
-  );
+  const disposable = vscode.languages.registerCompletionItemProvider({scheme: 'file'}, provider);
   outputChannel.appendLine('补全提供器注册完成');
 
   context.subscriptions.push(disposable);
-
 
   // 使用有效的事件监听器来重置 isCompletionActive 状态
   context.subscriptions.push(
@@ -518,17 +514,19 @@ function activate(context) {
   // 监听文档打开事件
   context.subscriptions.push(
     vscode.workspace.onDidOpenTextDocument(() => {
-      outputChannel.appendLine('Document opened, snippets helper activated');
+      outputChannel.appendLine('Document opened, completion booster activated');
     })
   );
 
   // 监听配置变更
   context.subscriptions.push(
     vscode.workspace.onDidChangeConfiguration((event) => {
-      if (event.affectsConfiguration('snippetsHelper.enabled')) {
-        const enabled = vscode.workspace.getConfiguration('snippetsHelper').get('enabled');
+      if (event.affectsConfiguration('completionBooster.enabled')) {
+        const enabled = vscode.workspace.getConfiguration('completionBooster').get('enabled');
         outputChannel.appendLine(`配置已更改: enabled = ${enabled}`);
-        statusBarItem.text = enabled ? '$(list-ordered) Snippets Helper' : '$(list-ordered) Snippets Helper (已禁用)';
+        statusBarItem.text = enabled
+          ? '$(list-ordered) Completion Booster'
+          : '$(list-ordered) Completion Booster (已禁用)';
       }
     })
   );
@@ -538,11 +536,11 @@ function activate(context) {
   outputChannel.appendLine(`激活时间: ${new Date().toLocaleString()}`);
   outputChannel.appendLine(`VSCode版本: ${vscode.version}`);
   outputChannel.appendLine(
-    `插件状态: ${vscode.workspace.getConfiguration('snippetsHelper').get('enabled') ? '已启用' : '已禁用'}`
+    `插件状态: ${vscode.workspace.getConfiguration('completionBooster').get('enabled') ? '已启用' : '已禁用'}`
   );
   outputChannel.appendLine('================================');
 
-  outputChannel.appendLine('Snippets Helper activated');
+  outputChannel.appendLine('Completion Booster activated');
 }
 
 function deactivate() {}
