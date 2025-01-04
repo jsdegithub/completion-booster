@@ -254,80 +254,60 @@ function activate(context) {
 
         outputChannel.appendLine(`找到 ${snippets.length} 个代码片段定义`);
 
-        // 处理所有代码片段时，确保设置 CompletionItemKind 和额外属性
-        snippets.forEach((snippet, index) => {
-          outputChannel.appendLine(`处理代码片段 [${index}] 来自 ${snippet.source}:`);
-
-          // 获取前缀，支持字符串或数组形式
+        // 先创建所有匹配的补全项
+        const matchedItems = [];
+        snippets.forEach((snippet) => {
           const prefixes = Array.isArray(snippet.prefix) ? snippet.prefix : [snippet.prefix];
 
-          outputChannel.appendLine(`\nprefixes: ${prefixes}`);
-
-          // 检查每个前缀是否匹配
           prefixes.forEach((prefix) => {
-            // 添加前缀匹配检查
             if (typeof prefix === 'string' && prefix.toLowerCase().startsWith(linePrefix.toLowerCase())) {
               const item = new vscode.CompletionItem(
                 {
-                  label: `${index + 1}. ${snippet.name || prefix}`,
+                  // 暂时不添加序号，后面统一处理
+                  label: snippet.name || prefix,
                   description: snippet.source,
-                  detail: `[#${index + 1}] ${snippet.description || ''}`,
+                  detail: snippet.description || '',
                 },
                 vscode.CompletionItemKind.Snippet
               );
 
               const body = Array.isArray(snippet.body) ? snippet.body.join('\n') : snippet.body;
               item.insertText = new vscode.SnippetString(body || '');
-              item.detail = `[${index + 1}] ${snippet.description || snippet.name || prefix}`;
               item.filterText = prefix;
-              item.sortText = `${index}`.padStart(5, '0');
               item.documentation = new vscode.MarkdownString()
                 .appendCodeblock(body, document.languageId)
                 .appendText(`\n\n来源: ${snippet.source}`);
 
-              outputChannel.appendLine(`创建补全项: ${prefix} -> ${item.label}`);
               item.isSnippet = true;
               item.isUserSnippet = snippet.isUserSnippet;
-              items.push(item);
+              matchedItems.push(item);
             }
           });
         });
 
-        // 修改排序逻辑，使用新的判断方式
-        items.sort((a, b) => {
-          const aPrefix = a.filterText?.toLowerCase() || '';
-          const bPrefix = b.filterText?.toLowerCase() || '';
-          const input = linePrefix.toLowerCase();
-
-          // 获取来源信息
-          const aSource = a.label.description?.toLowerCase() || '';
-          const bSource = b.label.description?.toLowerCase() || '';
-
-          // 判断是否为自定义snippets（直接使用isUserSnippet标记）
-          const aIsUserSnippet = a.isUserSnippet === true;
-          const bIsUserSnippet = b.isUserSnippet === true;
-
-          // 使用 isSnippet 属性来判断是否为 snippet
-          const aIsSnippet = a.isSnippet === true;
-          const bIsSnippet = b.isSnippet === true;
-
-          // 优先级排序逻辑保持不变
-          if (aIsUserSnippet !== bIsUserSnippet) {
-            return aIsUserSnippet ? -1 : 1;
+        // 先排序
+        matchedItems.sort((a, b) => {
+          if (a.isUserSnippet !== b.isUserSnippet) {
+            return a.isUserSnippet ? -1 : 1;
           }
-          if (aIsSnippet !== bIsSnippet) {
-            return aIsSnippet ? -1 : 1;
-          }
-
-          // 在同一优先级类别内，按前缀匹配度排序
-          const aStartsWith = aPrefix.startsWith(input);
-          const bStartsWith = bPrefix.startsWith(input);
-          if (aStartsWith !== bStartsWith) {
-            return aStartsWith ? -1 : 1;
-          }
-
-          return a.sortText.localeCompare(b.sortText);
+          return a.filterText.localeCompare(b.filterText);
         });
+
+        // 添加序号并创建最终的补全项列表
+        items.push(
+          ...matchedItems.map((item, index) => {
+            const number = index + 1;
+            item.label = {
+              label: `${number}. ${item.label.label}`,
+              description: item.label.description,
+              detail: `[#${number}] ${item.label.detail}`,
+            };
+            item.sortText = number.toString().padStart(5, '0');
+            return item;
+          })
+        );
+
+        outputChannel.appendLine(`\n找到 ${items.length} 个匹配的snippets`);
       } catch (err) {
         outputChannel.appendLine(`处理代码片段时出错: ${err.stack || err.message}`);
       }
