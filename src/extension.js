@@ -239,10 +239,12 @@ function activate(context) {
 
           // 获取用户 snippets 目录（支持多个可能的路径）
           const possiblePaths = [
-            // 通过环境变量获取的路径
+            // Windows 路径
             path.join(process.env.APPDATA || '', 'Code', 'User', 'snippets'),
-            // 兜底路径
-            path.join(process.env.HOME || process.env.USERPROFILE || '', '.config', 'Code', 'User', 'snippets'),
+            // Mac 路径
+            path.join(process.env.HOME || '', 'Library', 'Application Support', 'Code', 'User', 'snippets'),
+            // Linux 路径
+            path.join(process.env.HOME || '', '.config', 'Code', 'User', 'snippets'),
           ];
 
           let snippetsPath = null;
