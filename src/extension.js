@@ -16,6 +16,17 @@ function activate(context) {
   });
   context.subscriptions.push(enableCommand);
 
+  // 修改插入snippet的命令处理
+  let insertSnippetCommand = vscode.commands.registerCommand('snippetsHelper.insertSnippet', async (args) => {
+    const editor = vscode.window.activeTextEditor;
+    if (editor && args && args.snippet) {
+      const snippetString =
+        args.snippet instanceof vscode.SnippetString ? args.snippet : new vscode.SnippetString(args.snippet);
+      await editor.insertSnippet(snippetString);
+    }
+  });
+  context.subscriptions.push(insertSnippetCommand);
+
   // 创建状态栏项
   const statusBarItem = vscode.window.createStatusBarItem(vscode.StatusBarAlignment.Left, 0);
   statusBarItem.text = '$(list-ordered) Snippets Helper';
@@ -34,10 +45,80 @@ function activate(context) {
   outputChannel.appendLine(`时间: ${new Date().toLocaleString()}`);
   outputChannel.appendLine('===============================');
 
+  // 添加数字缓存
+  let numberBuffer = '';
+  let numberBufferTimeout = null;
+
+  // 添加变量跟踪建议列表状态
+  let isCompletionActive = false;
+
+  // 监听建议列表状态变化
+  context.subscriptions.push(
+    vscode.languages.registerCompletionItemProvider(
+      {scheme: 'file'},
+      {
+        provideCompletionItems(document, position) {
+          isCompletionActive = true;
+          outputChannel.appendLine('建议列表已激活');
+          return [];
+        },
+      },
+      '.' // 使用一个不常用的触发字符
+    )
+  );
+
   // 创建补全项提供器
   const provider = {
     async provideCompletionItems(document, position) {
       const linePrefix = document.lineAt(position).text.substr(0, position.character);
+      outputChannel.appendLine(`\n========== 补全触发 ==========`);
+      outputChannel.appendLine(`当前输入: "${linePrefix}"`);
+
+      // 检查是否是数字输入且建议列表处于激活状态
+      const numberMatch = linePrefix.match(/(\d+)$/);
+      if (numberMatch && isCompletionActive) {
+        numberBuffer = numberMatch[1];
+        outputChannel.appendLine(`检测到数字输入: ${numberBuffer} (建议列表已激活)`);
+
+        // 将数字转换为索引
+        const selectedIndex = parseInt(numberBuffer) - 1;
+        outputChannel.appendLine(`转换为索引: ${selectedIndex}`);
+
+        // 如果有缓存的匹配项且索引有效，直接应用选中的snippet
+        if (this.lastMatchedItems && selectedIndex >= 0 && selectedIndex < this.lastMatchedItems.length) {
+          const selectedItem = this.lastMatchedItems[selectedIndex];
+          outputChannel.appendLine(`选中项: ${selectedItem.label.label || selectedItem.label}`);
+
+          // 创建新的CompletionItem用于插入
+          const autoInsertItem = new vscode.CompletionItem(selectedItem.label);
+
+          // 确保使用正确的snippet内容
+          const snippetText = selectedItem.insertText || new vscode.SnippetString('');
+
+          // 设置插入行为
+          autoInsertItem.insertText = snippetText;
+          autoInsertItem.kind = vscode.CompletionItemKind.Snippet;
+          autoInsertItem.preselect = true;
+
+          // 添加命令确保snippet正确插入
+          autoInsertItem.command = {
+            command: 'editor.action.insertSnippet',
+            title: 'Insert Snippet',
+            arguments: [{snippet: snippetText.value || snippetText}],
+          };
+
+          // 删除输入的数字
+          const deleteRange = new vscode.Range(
+            position.with(undefined, position.character - numberBuffer.length),
+            position
+          );
+          autoInsertItem.additionalTextEdits = [vscode.TextEdit.delete(deleteRange)];
+
+          outputChannel.appendLine('准备插入snippet...');
+          return [autoInsertItem];
+        }
+      }
+
       outputChannel.appendLine(`\n========== 补全触发 ==========`);
       outputChannel.appendLine(`检测到输入: "${linePrefix}"`);
 
@@ -285,13 +366,9 @@ function activate(context) {
           });
         });
 
-        // 先排序
-        matchedItems.sort((a, b) => {
-          if (a.isUserSnippet !== b.isUserSnippet) {
-            return a.isUserSnippet ? -1 : 1;
-          }
-          return a.filterText.localeCompare(b.filterText);
-        });
+        // 缓存匹配的items以供数字选择使用
+        this.lastMatchedItems = matchedItems;
+        outputChannel.appendLine(`缓存了 ${matchedItems.length} 个匹配项供数字选择使用`);
 
         // 添加序号并创建最终的补全项列表
         items.push(
@@ -302,7 +379,10 @@ function activate(context) {
               description: item.label.description,
               detail: `[#${number}] ${item.label.detail}`,
             };
-            item.sortText = number.toString().padStart(5, '0');
+            // 确保排序时数字选择的item排在最前面
+            item.sortText = numberBuffer
+              ? '!' + number.toString().padStart(5, '0')
+              : number.toString().padStart(5, '0');
             return item;
           })
         );
@@ -316,12 +396,37 @@ function activate(context) {
       outputChannel.appendLine('============================\n');
       return items;
     },
+
+    // 添加resolve方法以支持异步加载补全项的额外信息
+    resolveCompletionItem(item) {
+      return item;
+    },
   };
 
-  // 注册补全提供器，监听所有文件
-  const disposable = vscode.languages.registerCompletionItemProvider({scheme: 'file'}, provider);
+  // 注册补全提供器，设置触发字符包含数字
+  outputChannel.appendLine('注册补全提供器，包含数字触发字符');
+  const disposable = vscode.languages.registerCompletionItemProvider(
+    {scheme: 'file'},
+    provider,
+    ...'0123456789'.split('') // 添加数字作为触发字符
+  );
+  outputChannel.appendLine('补全提供器注册完成');
 
   context.subscriptions.push(disposable);
+
+  // 监听建议列表隐藏事件
+  context.subscriptions.push(
+    vscode.languages.registerCompletionItemProvider(
+      {scheme: 'file'},
+      {
+        resolveCompletionItem(item) {
+          isCompletionActive = false;
+          outputChannel.appendLine('建议列表已关闭');
+          return item;
+        },
+      }
+    )
+  );
 
   // 监听文档打开事件
   context.subscriptions.push(
