@@ -446,6 +446,63 @@ function activate(context) {
     })
   );
 
+  // 监听建议列表处于激活时的文本变更
+  let isHandlingChange = false;
+  context.subscriptions.push(
+    vscode.workspace.onDidChangeTextDocument((event) => {
+      if (!isCompletionActive || isHandlingChange) {
+        return;
+      }
+      const editor = vscode.window.activeTextEditor;
+      if (!editor || event.document !== editor.document) {
+        return;
+      }
+
+      // 检测最新输入的字符是否是数字
+      const changes = event.contentChanges;
+      if (changes.length === 0) {
+        return;
+      }
+      const insertedText = changes[0].text;
+      const match = insertedText.match(/^\d$/);
+      if (!match || !this.lastMatchedItems || this.lastMatchedItems.length === 0) {
+        return;
+      }
+
+      isHandlingChange = true;
+      const number = parseInt(insertedText);
+      const index = number - 1;
+      if (index >= 0 && index < this.lastMatchedItems.length) {
+        const selectedItem = this.lastMatchedItems[index];
+
+        Promise.resolve().then(async () => {
+          try {
+            // 插入 snippet
+            await vscode.commands.executeCommand('editor.action.insertSnippet', {
+              snippet: selectedItem.insertText.value || selectedItem.insertText,
+            });
+
+            // 删除刚输入的数字
+            const position = editor.selection.active;
+            const deleteRange = new vscode.Range(position.with(undefined, position.character - 1), position);
+            await editor.edit((editBuilder) => {
+              editBuilder.delete(deleteRange);
+            });
+
+            // 可选：隐藏建议列表
+            await vscode.commands.executeCommand('hideSuggestWidget');
+          } catch (error) {
+            outputChannel.appendLine(`自动插入出错: ${error.message}`);
+          } finally {
+            isHandlingChange = false;
+          }
+        });
+      } else {
+        isHandlingChange = false;
+      }
+    })
+  );
+
   // 添加更详细的日志
   outputChannel.appendLine('========== 插件激活详情 ==========');
   outputChannel.appendLine(`激活时间: ${new Date().toLocaleString()}`);
