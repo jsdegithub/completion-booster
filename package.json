@@ -40,7 +40,7 @@
       {
         "command": "completionBooster.insertNumberedSnippet",
         "key": "0",
-        "when": "editorTextFocus && suggestWidgetVisible",
+        "when": "editorTextFocus && suggestWidgetVisible && !completionBooster.isWaitingForSecondDigit",
         "args": {
           "text": "0"
         }
@@ -48,7 +48,7 @@
       {
         "command": "completionBooster.insertNumberedSnippet",
         "key": "1",
-        "when": "editorTextFocus && suggestWidgetVisible",
+        "when": "editorTextFocus && suggestWidgetVisible && !completionBooster.isWaitingForSecondDigit",
         "args": {
           "text": "1"
         }
@@ -56,7 +56,7 @@
       {
         "command": "completionBooster.insertNumberedSnippet",
         "key": "2",
-        "when": "editorTextFocus && suggestWidgetVisible",
+        "when": "editorTextFocus && suggestWidgetVisible && !completionBooster.isWaitingForSecondDigit",
         "args": {
           "text": "2"
         }
@@ -64,7 +64,7 @@
       {
         "command": "completionBooster.insertNumberedSnippet",
         "key": "3",
-        "when": "editorTextFocus && suggestWidgetVisible",
+        "when": "editorTextFocus && suggestWidgetVisible && !completionBooster.isWaitingForSecondDigit",
         "args": {
           "text": "3"
         }
@@ -72,7 +72,7 @@
       {
         "command": "completionBooster.insertNumberedSnippet",
         "key": "4",
-        "when": "editorTextFocus && suggestWidgetVisible",
+        "when": "editorTextFocus && suggestWidgetVisible && !completionBooster.isWaitingForSecondDigit",
         "args": {
           "text": "4"
         }
@@ -80,7 +80,7 @@
       {
         "command": "completionBooster.insertNumberedSnippet",
         "key": "5",
-        "when": "editorTextFocus && suggestWidgetVisible",
+        "when": "editorTextFocus && suggestWidgetVisible && !completionBooster.isWaitingForSecondDigit",
         "args": {
           "text": "5"
         }
@@ -88,7 +88,7 @@
       {
         "command": "completionBooster.insertNumberedSnippet",
         "key": "6",
-        "when": "editorTextFocus && suggestWidgetVisible",
+        "when": "editorTextFocus && suggestWidgetVisible && !completionBooster.isWaitingForSecondDigit",
         "args": {
           "text": "6"
         }
@@ -96,7 +96,7 @@
       {
         "command": "completionBooster.insertNumberedSnippet",
         "key": "7",
-        "when": "editorTextFocus && suggestWidgetVisible",
+        "when": "editorTextFocus && suggestWidgetVisible && !completionBooster.isWaitingForSecondDigit",
         "args": {
           "text": "7"
         }
@@ -104,7 +104,7 @@
       {
         "command": "completionBooster.insertNumberedSnippet",
         "key": "8",
-        "when": "editorTextFocus && suggestWidgetVisible",
+        "when": "editorTextFocus && suggestWidgetVisible && !completionBooster.isWaitingForSecondDigit",
         "args": {
           "text": "8"
         }
@@ -112,7 +112,7 @@
       {
         "command": "completionBooster.insertNumberedSnippet",
         "key": "9",
-        "when": "editorTextFocus && suggestWidgetVisible",
+        "when": "editorTextFocus && suggestWidgetVisible && !completionBooster.isWaitingForSecondDigit",
         "args": {
           "text": "9"
         }

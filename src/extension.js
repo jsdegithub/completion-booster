@@ -6,6 +6,10 @@ const jsoncParser = require('jsonc-parser'); // 添加 JSONC 解析器
 // 声明一个全局变量以存储匹配项
 let lastMatchedItemsGlobal = [];
 
+// 在 activate 函数开始处添加计时器变量
+let inputTimer = null;
+let inputBuffer = '';
+
 function activate(context) {
   console.log('开始激活 Completion Booster...');
 
@@ -46,68 +50,81 @@ function activate(context) {
         return;
       }
 
-      outputChannel.appendLine(`收到数字输入: ${inputChar}`);
-      const index = parseInt(inputChar) - 1;
-
-      if (!lastMatchedItemsGlobal || lastMatchedItemsGlobal.length === 0) {
-        outputChannel.appendLine('没有可用的补全项');
-        return;
+      // 清除之前的定时器
+      if (inputTimer) {
+        clearTimeout(inputTimer);
       }
 
-      outputChannel.appendLine(`当前缓存的补全项数量: ${lastMatchedItemsGlobal.length}`);
+      // 添加到输入缓冲区
+      inputBuffer += inputChar;
+      outputChannel.appendLine(`当前输入缓冲区: ${inputBuffer}`);
 
-      if (index >= 0 && index < lastMatchedItemsGlobal.length) {
-        const selectedItem = lastMatchedItemsGlobal[index];
+      // 设置新的定时器，等待可能的下一个数字
+      inputTimer = setTimeout(async () => {
+        const index = parseInt(inputBuffer) - 1;
+        outputChannel.appendLine(`最终选择的索引: ${index}`);
 
-        try {
-          // 获取当前位置和行文本
-          const position = editor.selection.active;
-          const line = editor.document.lineAt(position.line);
-          const lineText = line.text.substring(0, position.character);
+        // 清空缓冲区
+        inputBuffer = '';
 
-          // 从当前位置向前查找到最后一个空格位置
-          const lastSpaceIndex = lineText.lastIndexOf(' ');
-          const triggerWord = lineText.substring(lastSpaceIndex + 1);
-          const triggerWordLength = triggerWord.length;
-
-          // 如果找到触发词，先删除它
-          if (triggerWordLength > 0) {
-            const deleteRange = new vscode.Range(
-              new vscode.Position(position.line, position.character - triggerWordLength),
-              position
-            );
-
-            // 使用 editor.edit 删除触发词
-            await editor.edit(
-              (editBuilder) => {
-                editBuilder.delete(deleteRange);
-              },
-              {undoStopBefore: false, undoStopAfter: false}
-            );
-
-            outputChannel.appendLine(`删除触发词: "${triggerWord}"`);
-          }
-
-          // 获取 snippet 内容
-          const snippetText =
-            selectedItem.insertText instanceof vscode.SnippetString
-              ? selectedItem.insertText
-              : new vscode.SnippetString(selectedItem.insertText);
-
-          // 插入 snippet
-          await editor.insertSnippet(snippetText);
-
-          // 隐藏建议列表
-          await vscode.commands.executeCommand('hideSuggestWidget');
-
-          outputChannel.appendLine(`成功插入代码片段 [${index + 1}]`);
-        } catch (error) {
-          outputChannel.appendLine(`处理时出错: ${error.message}`);
-          vscode.window.showErrorMessage(`插入代码片段失败: ${error.message}`);
+        if (!lastMatchedItemsGlobal || lastMatchedItemsGlobal.length === 0) {
+          outputChannel.appendLine('没有可用的补全项');
+          return;
         }
-      } else {
-        outputChannel.appendLine(`无效的序号: ${inputChar} (索引: ${index})`);
-      }
+
+        if (index >= 0 && index < lastMatchedItemsGlobal.length) {
+          const selectedItem = lastMatchedItemsGlobal[index];
+
+          try {
+            // 获取当前位置和行文本
+            const position = editor.selection.active;
+            const line = editor.document.lineAt(position.line);
+            const lineText = line.text.substring(0, position.character);
+
+            // 从当前位置向前查找到最后一个空格位置
+            const lastSpaceIndex = lineText.lastIndexOf(' ');
+            const triggerWord = lineText.substring(lastSpaceIndex + 1);
+            const triggerWordLength = triggerWord.length;
+
+            // 如果找到触发词，先删除它
+            if (triggerWordLength > 0) {
+              const deleteRange = new vscode.Range(
+                new vscode.Position(position.line, position.character - triggerWordLength),
+                position
+              );
+
+              // 使用 editor.edit 删除触发词
+              await editor.edit(
+                (editBuilder) => {
+                  editBuilder.delete(deleteRange);
+                },
+                {undoStopBefore: false, undoStopAfter: false}
+              );
+
+              outputChannel.appendLine(`删除触发词: "${triggerWord}"`);
+            }
+
+            // 获取 snippet 内容
+            const snippetText =
+              selectedItem.insertText instanceof vscode.SnippetString
+                ? selectedItem.insertText
+                : new vscode.SnippetString(selectedItem.insertText);
+
+            // 插入 snippet
+            await editor.insertSnippet(snippetText);
+
+            // 隐藏建议列表
+            await vscode.commands.executeCommand('hideSuggestWidget');
+
+            outputChannel.appendLine(`成功插入代码片段 [${index + 1}]`);
+          } catch (error) {
+            outputChannel.appendLine(`处理时出错: ${error.message}`);
+            vscode.window.showErrorMessage(`插入代码片段失败: ${error.message}`);
+          }
+        } else {
+          outputChannel.appendLine(`无效的序号: ${inputChar} (索引: ${index})`);
+        }
+      }, 100); // 等待100ms，给用户输入第二个数字的时间
     }
   );
 
