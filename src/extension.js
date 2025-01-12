@@ -10,6 +10,9 @@ let lastMatchedItemsGlobal = [];
 let inputTimer = null;
 let inputBuffer = '';
 
+// 添加一个标志位来防止递归
+let isProcessingCompletion = false;
+
 function activate(context) {
   console.log('开始激活 Completion Booster...');
 
@@ -206,137 +209,100 @@ function activate(context) {
     return numberedItem;
   }
 
-  // 创建补全项提供器
+  // 修改补全项提供器实现
   const provider = {
-    // 新增: 读取单个snippets文件的函数
-    async readSnippetsFile(filePath, source, outputChannel) {
-      const snippets = [];
-      try {
-        const fileContent = fs.readFileSync(filePath, 'utf8');
-        let content;
-
-        try {
-          const errors = [];
-          content = jsoncParser.parse(fileContent, errors, {allowTrailingComma: true});
-          if (!content) throw new Error('解析结果为空');
-        } catch (err) {
-          const strippedContent = fileContent.replace(/\/\*[\s\S]*?\*\/|\/\/.*/g, '').replace(/,(\s*[}\]])/g, '$1');
-          content = JSON.parse(strippedContent);
-        }
-
-        return Object.entries(content).map(([name, snippet]) => ({
-          name,
-          ...snippet,
-          source,
-          isSnippet: true,
-          isUserSnippet: true,
-        }));
-      } catch (err) {
-        outputChannel.appendLine(`读取文件失败 ${filePath}: ${err.message}`);
+    async provideCompletionItems(document, position, token, context) {
+      if (isProcessingCompletion) {
         return [];
       }
-    },
-
-    async provideCompletionItems(document, position) {
-      const linePrefix = document.lineAt(position).text.substr(0, position.character);
-      const languageId = document.languageId;
-
-      isCompletionActive = true;
-      outputChannel.appendLine('建议列表已激活');
 
       try {
-        // 1. 收集所有代码片段
-        const allSnippets = [];
-        const snippetsPath = findSnippetsPath(outputChannel);
-        outputChannel.appendLine(`使用snippets目录: ${snippetsPath}`);
+        isProcessingCompletion = true;
+        outputChannel.appendLine('开始处理补全项...');
 
-        // 2. 读取所有snippets文件
-        if (snippetsPath) {
-          const files = fs.readdirSync(snippetsPath);
-          const snippetFiles = files.filter((file) => file.endsWith('.code-snippets'));
-          outputChannel.appendLine(`发现snippet文件: ${snippetFiles.join(', ')}`);
+        // 获取原始补全项
+        const originalCompletions = await vscode.commands.executeCommand(
+          'vscode.executeCompletionItemProvider',
+          document.uri,
+          position,
+          undefined,
+          Number.MAX_SAFE_INTEGER
+        );
 
-          // 并行读取所有snippets文件
-          const readPromises = snippetFiles.map((file) => {
-            const fullPath = path.join(snippetsPath, file);
-            const source = `user/${path.basename(file, '.code-snippets')}`;
-            return this.readSnippetsFile(fullPath, source, outputChannel);
-          });
-
-          // 等待所有文件读取完成
-          const snippetsArrays = await Promise.all(readPromises);
-          snippetsArrays.forEach((snippets) => {
-            if (snippets && snippets.length > 0) {
-              allSnippets.push(...snippets);
-            }
-          });
+        if (!originalCompletions || !originalCompletions.items || originalCompletions.items.length === 0) {
+          return [];
         }
 
-        outputChannel.appendLine(`总共收集到 ${allSnippets.length} 个代码片段`);
+        // 获取触发词
+        const linePrefix = document.lineAt(position.line).text.substr(0, position.character);
+        const wordRange = document.getWordRangeAtPosition(position);
+        const triggerWord = wordRange ? document.getText(wordRange).toLowerCase() : '';
 
-        // 3. 先按照prefix排序所有snippets
-        const sortedSnippets = allSnippets.sort((a, b) => {
-          const prefixA = Array.isArray(a.prefix) ? a.prefix[0] : a.prefix;
-          const prefixB = Array.isArray(b.prefix) ? b.prefix[0] : b.prefix;
-          return (prefixA || '').localeCompare(prefixB || '');
-        });
+        // 创建一个Map来存储已处理的项，用detail和insertText组合作为key以准确识别重复项
+        const processedItems = new Map();
 
-        // 4. 根据输入过滤并创建补全项
-        const matchedItems = [];
-        let index = 0;
-        const processedNames = new Map();
+        // 过滤和处理补全项
+        const matchedItems = originalCompletions.items
+          .filter(item => {
+            const label = typeof item.label === 'string' ? item.label : item.label.label;
+            const filterText = item.filterText || label;
+            const key = `${item.detail || ''}_${item.insertText || label}`;
 
-        for (const snippet of sortedSnippets) {
-          const prefixes = Array.isArray(snippet.prefix) ? snippet.prefix : [snippet.prefix];
+            // 如果是snippet类型的补全项且已经处理过，则跳过
+            if (item.kind === vscode.CompletionItemKind.Snippet && processedItems.has(key)) {
+              return false;
+            }
 
-          // 检查是否有前缀匹配且该snippet还未处理过
-          if (
-            !processedNames.has(snippet.name) &&
-            prefixes.some(
-              (prefix) => typeof prefix === 'string' && prefix.toLowerCase().startsWith(linePrefix.toLowerCase())
-            )
-          ) {
-            processedNames.set(snippet.name, true);
+            processedItems.set(key, true);
+            return !triggerWord || filterText.toLowerCase().includes(triggerWord);
+          })
+          .map((item, index) => {
+            const originalLabel = typeof item.label === 'string' ? item.label : item.label.label;
+            const numberedItem = new vscode.CompletionItem(
+              {
+                label: `${index + 1}. ${originalLabel}`,
+                description: typeof item.label === 'object' ? item.label.description : undefined,
+                detail: typeof item.label === 'object' ? item.label.detail : undefined
+              },
+              item.kind || vscode.CompletionItemKind.Text
+            );
 
-            const item = new vscode.CompletionItem({
-              label: `${index + 1}. ${snippet.name}`,
-              description: snippet.source,
-              detail: snippet.description || '',
+            // 复制原始项的所有属性
+            Object.keys(item).forEach(key => {
+              if (key !== 'label' && key !== 'filterText' && key !== 'sortText') {
+                numberedItem[key] = item[key];
+              }
             });
 
-            item.kind = vscode.CompletionItemKind.Snippet;
-            const body = Array.isArray(snippet.body) ? snippet.body.join('\n') : snippet.body;
-            item.insertText = new vscode.SnippetString(body);
-            item.documentation = new vscode.MarkdownString()
-              .appendCodeblock(body, languageId)
-              .appendText(`\n\n来源: ${snippet.source}`);
+            // 设置过滤文本，确保数字和原始文本都可以用于搜索
+            numberedItem.filterText = `${index + 1} ${item.filterText || originalLabel}`;
+            // 保持原始排序
+            numberedItem.sortText = `${index}`.padStart(5, '0');
 
-            item.filterText = prefixes.join(' ');
-            item.sortText = `${index + 1}`.padStart(5, '0');
+            outputChannel.appendLine(`处理项: ${originalLabel} (${item.kind === vscode.CompletionItemKind.Snippet ? 'Snippet' : 'Other'})`);
+            return numberedItem;
+          });
 
-            matchedItems.push(item);
-            index++;
-          }
-        }
+        lastMatchedItemsGlobal = matchedItems;
+        outputChannel.appendLine(`处理完成，返回 ${matchedItems.length} 个编号补全项`);
+        return matchedItems;
 
-        // 5. 返回结果
-        if (matchedItems.length > 0) {
-          lastMatchedItemsGlobal = matchedItems;
-          return matchedItems;
-        }
-
-        return [];
       } catch (err) {
-        outputChannel.appendLine(`处理代码片段时出错: ${err.stack || err.message}`);
+        outputChannel.appendLine(`处理补全项时出错: ${err.stack || err.message}`);
         return [];
+      } finally {
+        isProcessingCompletion = false;
       }
-    },
+    }
   };
 
-  // 修改注册补全提供器的方式，添加触发字符
-  outputChannel.appendLine('注册补全提供器');
-  const triggerChars = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
-  const disposable = vscode.languages.registerCompletionItemProvider({scheme: 'file'}, provider, ...triggerChars);
+  // 修改注册补全提供器的方式
+  const triggerChars = [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_.'];
+  const disposable = vscode.languages.registerCompletionItemProvider(
+    { scheme: 'file' },
+    provider,
+    ...triggerChars
+  );
 
   context.subscriptions.push(disposable);
 
