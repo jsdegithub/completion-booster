@@ -220,35 +220,44 @@ function activate(context) {
         isProcessingCompletion = true;
         outputChannel.appendLine('开始处理补全项...');
 
-        // 获取当前行的文本和触发补全的前缀
-        const linePrefix = document.lineAt(position.line).text.substr(0, position.character);
+        // 获取当前输入的前缀
+        const linePrefix = document.lineAt(position.line).text.substring(0, position.character);
         const wordRange = document.getWordRangeAtPosition(position);
         const prefix = wordRange ? document.getText(wordRange).toLowerCase() : '';
-
         outputChannel.appendLine(`当前前缀: "${prefix}"`);
 
         // 获取原始补全项
         const originalCompletions = await vscode.commands.executeCommand(
           'vscode.executeCompletionItemProvider',
           document.uri,
-          position,
-          undefined,
-          Number.MAX_SAFE_INTEGER
+          position
         );
 
-        if (!originalCompletions || !originalCompletions.items || originalCompletions.items.length === 0) {
+        if (!originalCompletions?.items?.length) {
           return [];
         }
 
-        // 先根据前缀过滤补全项
-        const filteredItems = originalCompletions.items.filter((item) => {
+        // 先过滤出匹配的补全项
+        const matchedItems = originalCompletions.items.filter((item) => {
           const label = typeof item.label === 'string' ? item.label : item.label.label;
-          const filterText = item.filterText || label;
-          return !prefix || filterText.toLowerCase().includes(prefix);
+          const filterText = (item.filterText || label).toLowerCase();
+          // 严格检查是否包含前缀
+          return prefix ? filterText.includes(prefix) : true;
         });
 
-        // 对过滤后的项添加序号
-        const matchedItems = filteredItems.map((item, index) => {
+        outputChannel.appendLine(`匹配到 ${matchedItems.length} 个补全项`);
+
+        // 对匹配项进行去重和添加序号
+        const uniqueItems = new Map();
+        matchedItems.forEach((item) => {
+          const label = typeof item.label === 'string' ? item.label : item.label.label;
+          if (!uniqueItems.has(label)) {
+            uniqueItems.set(label, item);
+          }
+        });
+
+        // 为去重后的匹配项添加序号
+        const numberedItems = Array.from(uniqueItems.values()).map((item, index) => {
           const originalLabel = typeof item.label === 'string' ? item.label : item.label.label;
           const numberedItem = new vscode.CompletionItem(
             {
@@ -266,34 +275,29 @@ function activate(context) {
             }
           });
 
-          // 保持原始顺序的排序文本
+          // 使用序号确保排序
           numberedItem.sortText = `${index}`.padStart(5, '0');
-          // 保留原始过滤文本，但添加序号以支持序号搜索
-          numberedItem.filterText = `${originalLabel} ${index + 1}`;
+          // 保持原始文本作为过滤依据
+          numberedItem.filterText = originalLabel;
 
-          outputChannel.appendLine(`处理匹配项 [${index + 1}]: ${originalLabel}`);
+          outputChannel.appendLine(`处理补全项 [${index + 1}]: ${originalLabel}`);
           return numberedItem;
         });
 
-        lastMatchedItemsGlobal = matchedItems;
-        outputChannel.appendLine(`处理完成，返回 ${matchedItems.length} 个编号补全项`);
-        return matchedItems;
+        lastMatchedItemsGlobal = numberedItems;
+        return new vscode.CompletionList(numberedItems, false);
       } catch (err) {
         outputChannel.appendLine(`处理补全项时出错: ${err.stack || err.message}`);
         return [];
       } finally {
         isProcessingCompletion = false;
       }
-    }
+    },
   };
 
-  // 修改注册补全提供器的方式
+  // 修改触发字符，只处理特定场景
   const triggerChars = [...'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ_.'];
-  const disposable = vscode.languages.registerCompletionItemProvider(
-    { scheme: 'file' },
-    provider,
-    ...triggerChars
-  );
+  const disposable = vscode.languages.registerCompletionItemProvider({scheme: 'file'}, provider, ...triggerChars);
 
   context.subscriptions.push(disposable);
 
