@@ -220,6 +220,13 @@ function activate(context) {
         isProcessingCompletion = true;
         outputChannel.appendLine('开始处理补全项...');
 
+        // 获取当前行的文本和触发补全的前缀
+        const linePrefix = document.lineAt(position.line).text.substr(0, position.character);
+        const wordRange = document.getWordRangeAtPosition(position);
+        const prefix = wordRange ? document.getText(wordRange).toLowerCase() : '';
+
+        outputChannel.appendLine(`当前前缀: "${prefix}"`);
+
         // 获取原始补全项
         const originalCompletions = await vscode.commands.executeCommand(
           'vscode.executeCompletionItemProvider',
@@ -233,60 +240,44 @@ function activate(context) {
           return [];
         }
 
-        // 获取触发词
-        const linePrefix = document.lineAt(position.line).text.substr(0, position.character);
-        const wordRange = document.getWordRangeAtPosition(position);
-        const triggerWord = wordRange ? document.getText(wordRange).toLowerCase() : '';
+        // 先根据前缀过滤补全项
+        const filteredItems = originalCompletions.items.filter((item) => {
+          const label = typeof item.label === 'string' ? item.label : item.label.label;
+          const filterText = item.filterText || label;
+          return !prefix || filterText.toLowerCase().includes(prefix);
+        });
 
-        // 创建一个Map来存储已处理的项，用detail和insertText组合作为key以准确识别重复项
-        const processedItems = new Map();
+        // 对过滤后的项添加序号
+        const matchedItems = filteredItems.map((item, index) => {
+          const originalLabel = typeof item.label === 'string' ? item.label : item.label.label;
+          const numberedItem = new vscode.CompletionItem(
+            {
+              label: `${index + 1}. ${originalLabel}`,
+              description: typeof item.label === 'object' ? item.label.description : undefined,
+              detail: typeof item.label === 'object' ? item.label.detail : undefined,
+            },
+            item.kind || vscode.CompletionItemKind.Text
+          );
 
-        // 过滤和处理补全项
-        const matchedItems = originalCompletions.items
-          .filter(item => {
-            const label = typeof item.label === 'string' ? item.label : item.label.label;
-            const filterText = item.filterText || label;
-            const key = `${item.detail || ''}_${item.insertText || label}`;
-
-            // 如果是snippet类型的补全项且已经处理过，则跳过
-            if (item.kind === vscode.CompletionItemKind.Snippet && processedItems.has(key)) {
-              return false;
+          // 复制原始属性
+          Object.keys(item).forEach((key) => {
+            if (key !== 'label' && key !== 'filterText' && key !== 'sortText') {
+              numberedItem[key] = item[key];
             }
-
-            processedItems.set(key, true);
-            return !triggerWord || filterText.toLowerCase().includes(triggerWord);
-          })
-          .map((item, index) => {
-            const originalLabel = typeof item.label === 'string' ? item.label : item.label.label;
-            const numberedItem = new vscode.CompletionItem(
-              {
-                label: `${index + 1}. ${originalLabel}`,
-                description: typeof item.label === 'object' ? item.label.description : undefined,
-                detail: typeof item.label === 'object' ? item.label.detail : undefined
-              },
-              item.kind || vscode.CompletionItemKind.Text
-            );
-
-            // 复制原始项的所有属性
-            Object.keys(item).forEach(key => {
-              if (key !== 'label' && key !== 'filterText' && key !== 'sortText') {
-                numberedItem[key] = item[key];
-              }
-            });
-
-            // 设置过滤文本，确保数字和原始文本都可以用于搜索
-            numberedItem.filterText = `${index + 1} ${item.filterText || originalLabel}`;
-            // 保持原始排序
-            numberedItem.sortText = `${index}`.padStart(5, '0');
-
-            outputChannel.appendLine(`处理项: ${originalLabel} (${item.kind === vscode.CompletionItemKind.Snippet ? 'Snippet' : 'Other'})`);
-            return numberedItem;
           });
+
+          // 保持原始顺序的排序文本
+          numberedItem.sortText = `${index}`.padStart(5, '0');
+          // 保留原始过滤文本，但添加序号以支持序号搜索
+          numberedItem.filterText = `${originalLabel} ${index + 1}`;
+
+          outputChannel.appendLine(`处理匹配项 [${index + 1}]: ${originalLabel}`);
+          return numberedItem;
+        });
 
         lastMatchedItemsGlobal = matchedItems;
         outputChannel.appendLine(`处理完成，返回 ${matchedItems.length} 个编号补全项`);
         return matchedItems;
-
       } catch (err) {
         outputChannel.appendLine(`处理补全项时出错: ${err.stack || err.message}`);
         return [];
