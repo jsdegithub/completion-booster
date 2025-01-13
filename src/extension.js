@@ -220,13 +220,7 @@ function activate(context) {
         isProcessingCompletion = true;
         outputChannel.appendLine('开始处理补全项...');
 
-        // 获取当前输入的前缀
-        const linePrefix = document.lineAt(position.line).text.substring(0, position.character);
-        const wordRange = document.getWordRangeAtPosition(position);
-        const prefix = wordRange ? document.getText(wordRange).toLowerCase() : '';
-        outputChannel.appendLine(`当前前缀: "${prefix}"`);
-
-        // 获取原始补全项
+        // 获取所有补全项
         const originalCompletions = await vscode.commands.executeCommand(
           'vscode.executeCompletionItemProvider',
           document.uri,
@@ -237,27 +231,17 @@ function activate(context) {
           return [];
         }
 
-        // 先过滤出匹配的补全项
-        const matchedItems = originalCompletions.items.filter((item) => {
-          const label = typeof item.label === 'string' ? item.label : item.label.label;
-          const filterText = (item.filterText || label).toLowerCase();
-          // 严格检查是否包含前缀
-          return prefix ? filterText.includes(prefix) : true;
+        outputChannel.appendLine(`获取到 ${originalCompletions.items.length} 个原始补全项`);
+
+        // 将所有补全项按 sortText 或 label 排序，确保顺序一致
+        const sortedItems = originalCompletions.items.sort((a, b) => {
+          const labelA = typeof a.label === 'string' ? a.label : a.label.label;
+          const labelB = typeof b.label === 'string' ? b.label : b.label.label;
+          return labelA.localeCompare(labelB);
         });
 
-        outputChannel.appendLine(`匹配到 ${matchedItems.length} 个补全项`);
-
-        // 对匹配项进行去重和添加序号
-        const uniqueItems = new Map();
-        matchedItems.forEach((item) => {
-          const label = typeof item.label === 'string' ? item.label : item.label.label;
-          if (!uniqueItems.has(label)) {
-            uniqueItems.set(label, item);
-          }
-        });
-
-        // 为去重后的匹配项添加序号
-        const numberedItems = Array.from(uniqueItems.values()).map((item, index) => {
+        // 添加序号
+        const numberedItems = sortedItems.map((item, index) => {
           const originalLabel = typeof item.label === 'string' ? item.label : item.label.label;
           const numberedItem = new vscode.CompletionItem(
             {
@@ -265,7 +249,7 @@ function activate(context) {
               description: typeof item.label === 'object' ? item.label.description : undefined,
               detail: typeof item.label === 'object' ? item.label.detail : undefined,
             },
-            item.kind || vscode.CompletionItemKind.Text
+            item.kind
           );
 
           // 复制原始属性
@@ -275,24 +259,30 @@ function activate(context) {
             }
           });
 
-          // 使用序号确保排序
-          numberedItem.sortText = `${index}`.padStart(5, '0');
+          // 强制使用序号作为唯一排序依据
+          numberedItem.sortText = index.toString().padStart(5, '0');
           // 保持原始文本作为过滤依据
           numberedItem.filterText = originalLabel;
+          // 设置最高优先级
+          numberedItem.kind = item.kind;
+          numberedItem.preselect = true;
 
           outputChannel.appendLine(`处理补全项 [${index + 1}]: ${originalLabel}`);
           return numberedItem;
         });
 
         lastMatchedItemsGlobal = numberedItems;
-        return new vscode.CompletionList(numberedItems, false);
+        outputChannel.appendLine(`处理完成，返回 ${numberedItems.length} 个编号补全项`);
+
+        // 返回不完整的列表，强制 VSCode 使用我们的排序
+        return numberedItems;
       } catch (err) {
         outputChannel.appendLine(`处理补全项时出错: ${err.stack || err.message}`);
         return [];
       } finally {
         isProcessingCompletion = false;
       }
-    },
+    }
   };
 
   // 修改触发字符，只处理特定场景
